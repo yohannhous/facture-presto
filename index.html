@@ -44,6 +44,19 @@
     body{padding:12px;}
     .card{padding:22px 18px;}
   }
+  /* Application installée sur iPhone : la carte ne passe pas sous l'encoche / la barre d'état */
+  @supports (padding: env(safe-area-inset-top)){
+    body{
+      padding-top:calc(24px + env(safe-area-inset-top));
+      padding-bottom:calc(24px + env(safe-area-inset-bottom));
+    }
+    @media (max-width:400px){
+      body{
+        padding-top:calc(12px + env(safe-area-inset-top));
+        padding-bottom:calc(12px + env(safe-area-inset-bottom));
+      }
+    }
+  }
   .brand{
     display:flex;
     align-items:baseline;
