@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2B1B12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Factures">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<title>Facture — Presto Café 786</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#FAF6EF;
+    --ink:#2B1B12;
+    --gold:#C08A28;
+    --leaf:#3F5C4A;
+    --line:#DFD3BE;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--ink);
+    font-family:'Georgia', 'Times New Roman', serif;
+    padding:24px;
+  }
+  .card{
+    width:100%;
+    max-width:440px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:32px 28px;
+  }
+  @media (max-width:400px){
+    body{padding:12px;}
+    .card{padding:22px 18px;}
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:12px;
+    margin-bottom:24px;
+  }
+  .brand h1{
+    font-size:22px;
+    margin:0;
+    letter-spacing:0.02em;
+    color:var(--ink);
+  }
+  .brand span{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    color:var(--gold);
+  }
+  label{
+    display:block;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--leaf);
+    margin:14px 0 5px;
+  }
+  input{
+    width:100%;
+    padding:9px 10px;
+    font-family:inherit;
+    font-size:16px;
+    color:var(--ink);
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:3px;
+  }
+  input:focus{
+    outline:none;
+    border-color:var(--gold);
+  }
+  .row{
+    display:flex;
+    gap:12px;
+  }
+  .row > div{flex:1;}
+  .total{
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px dashed var(--line);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  .total span:first-child{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--leaf);
+  }
+  .total span:last-child{
+    font-size:24px;
+    color:var(--ink);
+  }
+  button{
+    width:100%;
+    margin-top:22px;
+    padding:13px;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    border-radius:3px;
+    font-family:inherit;
+    font-size:14px;
+    letter-spacing:0.04em;
+    cursor:pointer;
+  }
+  button:hover{background:var(--leaf);}
+  .err{
+    color:#a33;
+    font-size:12px;
+    margin-top:8px;
+    display:none;
+  }
+  .status{
+    font-size:12px;
+    margin-top:8px;
+    display:none;
+  }
+  .status.ok{color:var(--leaf); display:block;}
+  .status.fail{color:#a33; display:block;}
+
+  /* --- Suggestions clients --- */
+  .field{position:relative;}
+  .suggest{
+    position:absolute;
+    left:0; right:0; top:100%;
+    z-index:20;
+    display:none;
+    max-height:230px;
+    overflow-y:auto;
+    background:#fff;
+    border:1px solid var(--gold);
+    border-top:none;
+    border-radius:0 0 3px 3px;
+    box-shadow:0 8px 18px rgba(43,27,18,.18);
+  }
+  .suggest.open{display:block;}
+  .sug-item{
+    padding:10px 12px;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-touch-callout:none;
+    touch-action:pan-y;
+    background-image:linear-gradient(rgba(192,138,40,.25), rgba(192,138,40,.25));
+    background-repeat:no-repeat;
+    background-size:0% 100%;
+  }
+  .sug-item.pressing{
+    background-size:100% 100%;
+    transition:background-size 3s linear;
+  }
+  .sug-name{font-size:15px; color:var(--ink);}
+  .sug-mail{font-size:12px; color:var(--leaf); margin-top:2px; word-break:break-all;}
+  .sug-hint{
+    padding:6px 12px;
+    font-size:11px;
+    color:#8a7d68;
+    background:var(--paper);
+    text-align:center;
+  }
+
+  /* --- Popup de suppression --- */
+  .modal{
+    position:fixed;
+    inset:0;
+    z-index:50;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    background:rgba(43,27,18,.65);
+  }
+  .modal[hidden]{display:none;}
+  .modal-box{
+    width:100%;
+    max-width:340px;
+    background:var(--paper);
+    border-radius:4px;
+    padding:22px 20px 18px;
+    text-align:center;
+  }
+  .modal-box p{margin:0;}
+  .modal-box .q{font-size:17px; color:var(--ink);}
+  .modal-box .who{font-size:13px; color:var(--leaf); margin-top:8px; word-break:break-all;}
+  .modal-actions{display:flex; gap:10px; margin-top:20px;}
+  .modal-actions button{margin-top:0; width:auto; flex:1;}
+  .modal-actions .ghost{background:transparent; color:var(--ink); border:1px solid var(--ink);}
+  .modal-actions .ghost:hover{background:var(--line);}
+  .modal-actions .danger{background:#a33;}
+  .modal-actions .danger:hover{background:#822;}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="brand">
+    <h1>Presto Café 786</h1>
+    <span>Facture</span>
+  </div>
+
+  <div class="row">
+    <div>
+      <label for="num">N° facture</label>
+      <input id="num" type="text">
+    </div>
+    <div>
+      <label for="date">Date</label>
+      <input id="date" type="date">
+    </div>
+  </div>
+
+  <label for="client">Client (optionnel)</label>
+  <div class="field">
+    <input id="client" type="text" placeholder="Nom du client" autocomplete="off">
+    <div class="suggest" id="clientSuggest"></div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label for="qte">Quantité</label>
+      <input id="qte" type="number" min="1" value="1">
+    </div>
+    <div>
+      <label for="prix">Prix unitaire — Repas (€)</label>
+      <input id="prix" type="number" min="0" step="0.01" placeholder="0.00">
+    </div>
+  </div>
+
+  <label for="email">Email destinataire (optionnel)</label>
+  <div class="field">
+    <input id="email" type="email" placeholder="client@email.com" autocomplete="off">
+    <div class="suggest" id="emailSuggest"></div>
+  </div>
+
+  <div class="total">
+    <span>Total</span>
+    <span id="totalVal">0,00 €</span>
+  </div>
+
+  <div class="err" id="err">Merci d'indiquer un prix.</div>
+  <div class="status" id="status"></div>
+
+  <button id="genBtn">Générer, télécharger et envoyer</button>
+</div>
+
+<div class="modal" id="delModal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="delQ">
+    <p class="q" id="delQ">Voulez-vous le supprimer ?</p>
+    <p class="who" id="delWho"></p>
+    <div class="modal-actions">
+      <button type="button" id="delCancel" class="ghost">Annuler</button>
+      <button type="button" id="delOk" class="danger">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const dateInput = document.getElementById('date');
+const numInput = document.getElementById('num');
+const qteInput = document.getElementById('qte');
+const prixInput = document.getElementById('prix');
+const totalVal = document.getElementById('totalVal');
+const err = document.getElementById('err');
+
+function todayISO(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+dateInput.value = todayISO();
+numInput.value = 'PC-' + todayISO().replace(/-/g,'');
+
+function fmt(n){
+  return n.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+}
+function updateTotal(){
+  const qte = parseFloat(qteInput.value) || 0;
+  const prix = parseFloat(prixInput.value) || 0;
+  totalVal.textContent = fmt(qte * prix);
+}
+qteInput.addEventListener('input', updateTotal);
+prixInput.addEventListener('input', updateTotal);
+updateTotal();
+
+// --- Clients (nom + email), mémorisés en local après un envoi réussi ---
+const STORE_KEY = 'prestoClients';
+const LONG_PRESS_MS = 3000;
+
+function loadClients(){
+  try{
+    const list = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (Array.isArray(list)) return list;
+  }catch{}
+  // reprise de l'ancienne liste d'emails seuls
+  try{
+    const old = JSON.parse(localStorage.getItem('prestoEmails') || '[]');
+    return old.map(email => ({name:'', email, last:0}));
+  }catch{ return []; }
+}
+function storeClients(list){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(list)); }catch{}
+}
+function saveClient(name, email){
+  const list = loadClients();
+  const i = list.findIndex(c => c.email.toLowerCase() === email.toLowerCase());
+  if (i >= 0){
+    if (name) list[i].name = name;
+    list[i].last = Date.now();
+  } else {
+    list.push({name, email, last: Date.now()});
+  }
+  storeClients(list);
+}
+function removeClient(email){
+  storeClients(loadClients().filter(c => c.email.toLowerCase() !== email.toLowerCase()));
+}
+
+const clientInput = document.getElementById('client');
+const emailInput = document.getElementById('email');
+const clientBox = document.getElementById('clientSuggest');
+const emailBox = document.getElementById('emailSuggest');
+const delModal = document.getElementById('delModal');
+const delWho = document.getElementById('delWho');
+let pendingDelete = null;
+
+function norm(s){
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+function hideBoxes(){
+  clientBox.classList.remove('open');
+  emailBox.classList.remove('open');
+}
+function pick(c){
+  if (c.name) clientInput.value = c.name;
+  emailInput.value = c.email;
+  hideBoxes();
+}
+function askDelete(c){
+  pendingDelete = c;
+  delWho.textContent = (c.name ? c.name + ' — ' : '') + c.email;
+  hideBoxes();
+  delModal.hidden = false;
+}
+function closeModal(){
+  delModal.hidden = true;
+  pendingDelete = null;
+}
+document.getElementById('delCancel').addEventListener('click', closeModal);
+document.getElementById('delOk').addEventListener('click', () => {
+  if (pendingDelete) removeClient(pendingDelete.email);
+  closeModal();
+});
+delModal.addEventListener('click', (e) => { if (e.target === delModal) closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !delModal.hidden) closeModal(); });
+
+function attachSuggest(input, box, key){
+  function render(){
+    const q = norm(input.value.trim());
+    const items = loadClients()
+      .filter(c => !q || norm(c[key]).includes(q))
+      .sort((a, b) => (b.last || 0) - (a.last || 0))
+      .slice(0, 8);
+    box.innerHTML = '';
+    // rien à proposer, ou la saisie correspond déjà exactement à la seule suggestion
+    if (!items.length || (q && items.length === 1 && norm(items[0][key]) === q)){
+      box.classList.remove('open');
+      return;
+    }
+
+    items.forEach((c) => {
+      const el = document.createElement('div');
+      el.className = 'sug-item';
+      const n = document.createElement('div');
+      n.className = 'sug-name';
+      n.textContent = c.name || c.email;
+      el.appendChild(n);
+      if (c.name){
+        const m = document.createElement('div');
+        m.className = 'sug-mail';
+        m.textContent = c.email;
+        el.appendChild(m);
+      }
+
+      let timer = null, longDone = false, cancelled = false, sx = 0, sy = 0;
+      const stop = () => { clearTimeout(timer); el.classList.remove('pressing'); };
+
+      el.addEventListener('pointerdown', (e) => {
+        longDone = false; cancelled = false;
+        sx = e.clientX; sy = e.clientY;
+        el.classList.add('pressing');
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          longDone = true;
+          el.classList.remove('pressing');
+          askDelete(c);
+        }, LONG_PRESS_MS);
+      });
+      el.addEventListener('pointermove', (e) => {
+        if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10){ cancelled = true; stop(); }
+      });
+      el.addEventListener('pointerleave', () => { cancelled = true; stop(); });
+      el.addEventListener('pointercancel', () => { cancelled = true; stop(); });
+      el.addEventListener('pointerup', () => {
+        const wasLong = longDone, wasCancelled = cancelled;
+        stop();
+        if (!wasLong && !wasCancelled) pick(c);
+      });
+      el.addEventListener('contextmenu', (e) => e.preventDefault());
+      box.appendChild(el);
+    });
+
+    const hint = document.createElement('div');
+    hint.className = 'sug-hint';
+    hint.textContent = 'Maintenir 3 s pour supprimer';
+    box.appendChild(hint);
+    box.classList.add('open');
+  }
+
+  input.addEventListener('input', render);
+  input.addEventListener('focus', render);
+  input.addEventListener('blur', () => setTimeout(() => box.classList.remove('open'), 200));
+  box.addEventListener('mousedown', (e) => e.preventDefault()); // garde le focus pendant l'appui long
+}
+attachSuggest(clientInput, clientBox, 'name');
+attachSuggest(emailInput, emailBox, 'email');
+
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+document.getElementById('genBtn').addEventListener('click', async () => {
+  const prix = parseFloat(prixInput.value);
+  const qte = parseFloat(qteInput.value) || 1;
+
+  if (!prix || prix <= 0){
+    err.style.display = 'block';
+    return;
+  }
+  err.style.display = 'none';
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'mm', format:'a4'});
+  const ink = [43,27,18];
+  const gold = [192,138,40];
+  const leaf = [63,92,74];
+
+  doc.setTextColor(...ink);
+  doc.setFont('times','bold');
+  doc.setFontSize(22);
+  doc.text('Presto Café 786', 20, 25);
+
+  doc.setFont('times','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(...gold);
+  doc.text('FACTURE', 190, 25, {align:'right'});
+
+  doc.setDrawColor(...ink);
+  doc.setLineWidth(0.6);
+  doc.line(20, 30, 190, 30);
+
+  doc.setTextColor(...leaf);
+  doc.setFontSize(10);
+  doc.text('N° facture', 20, 42);
+  doc.text('Date', 20, 50);
+  const client = document.getElementById('client').value.trim();
+  if (client) doc.text('Client', 20, 58);
+
+  doc.setTextColor(...ink);
+  doc.text(numInput.value, 55, 42);
+  doc.text(dateInput.value.split('-').reverse().join('/'), 55, 50);
+  if (client) doc.text(client, 55, 58);
+
+  const tableTop = 75;
+  doc.setFillColor(...ink);
+  doc.rect(20, tableTop, 170, 8, 'F');
+  doc.setTextColor(...[250,246,239]);
+  doc.setFontSize(10);
+  doc.text('Produit', 24, tableTop + 5.5);
+  doc.text('Qté', 120, tableTop + 5.5);
+  doc.text('Prix unitaire', 140, tableTop + 5.5);
+  doc.text('Total', 178, tableTop + 5.5, {align:'right'});
+
+  doc.setTextColor(...ink);
+  const rowY = tableTop + 16;
+  doc.text('Repas', 24, rowY);
+  doc.text(String(qte), 120, rowY);
+  doc.text(fmt(prix), 140, rowY);
+  doc.text(fmt(qte * prix), 178, rowY, {align:'right'});
+
+  doc.setDrawColor(...[223,211,190]);
+  doc.line(20, rowY + 6, 190, rowY + 6);
+
+  doc.setFont('times','bold');
+  doc.setFontSize(14);
+  doc.text('Total', 140, rowY + 20);
+  doc.text(fmt(qte * prix), 178, rowY + 20, {align:'right'});
+
+  doc.save(numInput.value + '.pdf');
+
+  const status = document.getElementById('status');
+  const email = document.getElementById('email').value.trim();
+
+  if (email){
+    status.className = 'status';
+    status.textContent = 'Envoi en cours...';
+    status.style.display = 'block';
+    try{
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+      const res = await fetch('https://hook.us2.make.com/pvrwq7trulpsup66qblsd6e78ftfyyld', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ to: email, invoiceNum: numInput.value, pdfBase64 })
+      });
+      if (!res.ok) throw new Error();
+      status.className = 'status ok';
+      status.textContent = 'Facture envoyée à ' + email;
+      saveClient(client, email);
+    }catch(e){
+      status.className = 'status fail';
+      status.textContent = "Échec de l'envoi — réessaie dans un instant.";
+    }
+  }
+});
+</script>
+
+</body>
+</html>
